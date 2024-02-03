@@ -1,0 +1,205 @@
+# Instala pre-requisitos
+yum insatall wget curl vim git lsb-release ca-certificates apt-transport-https software-properties-comm
+
+
+## Desativa swap
+vi /etc/fstab
+swapoff -a
+
+## Instala containerd.io
+dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
+dnf update
+dnf install containerd.io
+
+## Configura containerd 
+sudo su -
+containerd config default > /etc/containerd/config.toml
+vim /etc/containerd/config.toml
+            SystemdCgroup = true
+exit
+sudo systemctl restart containerd;
+sudo systemctl enable containerd;
+systemctl status containerd
+
+## Instala pacotes do kubernetes
+sudo tee /etc/yum.repos.d/kubernetes.repo <<EOF
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg
+        https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+exclude=kubelet kubeadm kubectl
+EOF
+
+# Instala pacotes
+dnf install -y kubelet kubeadm kubectl
+
+sudo systemctl enable --now kubelet
+systemctl enable kubelet.service
+
+
+###
+echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward
+
+###
+echo "net.ipv4.ip_forward = 1" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+
+
+
+###Fazendo com que o iptables enxergue o tráfego agregado
+cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
+br_netfilter
+EOF
+
+###
+cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF
+
+###
+sudo sysctl --system
+
+## Carrega kernel modules
+sudo modprobe overlay
+sudo modprobe br_netfilter
+
+
+## Confere se o br_netfilter tá carregado
+lsmod | grep br_netfilter
+
+## Puxa os componentes do master
+kubeadm config images pull - rodar no master
+
+## Cria o cluster
+kubeadm init --pod-network-cidr=10.244.0.0/16 --upload-certs --control-plane-endpoint=k8spocmaster1 --v=5
+
+kubeadm init --config=kubeadm-config.yaml --v=5
+
+kubeadm init --pod-network-cidr=10.244.0.0/16 --control-plane-endpoint=172.28.0.153 --upload-certs --apiserver-advertise-address=172.28.0.128 --v=5
+
+
+## Configura kubectl
+mkdir -p $HOME/.kube
+sudo cp -f /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+sudo chmod -R o+r /etc/kubernetes/*
+
+## Instala rede do kubernetes
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+
+
+## Altesrar kube-proxy para iptables
+kubectl edit configmap -n kube-system kube-proxy
+
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+mode: "" para mode: "iptables"
+ipvs:
+  strictARP: true
+
+
+### Editar kubelet
+editar o arquivo /etc/kubernetes/kubelet.conf seguindo o execmplo conforme kubelet.conf
+systemctl restart kubelet
+
+### Install Metallb
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.12/config/manifests/metallb-native.yaml
+
+
+
+### Documentation metallb ###
+https://metallb.universe.tf/installation/#installation-by-manifest
+https://metallb.universe.tf/configuration/#layer-2-configuration
+
+kubectl edit configmap -n kube-system kube-proxy
+
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+mode: "" para mode: "iptables"
+ipvs:
+  strictARP: true
+
+### Criar metallb.yaml
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: metallb-system
+  namespace: metallb-system
+spec:
+  addresses:
+  - 172.28.0.126-172.28.0.130
+
+---
+
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: metallb-system
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - metallb-system
+
+
+
+
+### Configurar ingress
+
+https://kubernetes.github.io/ingress-nginx/deploy/#bare-metal-clusters
+kubectl edit ingressclass nginx
+ingressclass.kubernetes.io/is-default-class: "true"
+
+
+### Intall Heml no cluster
+Acessar o master ssh
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod 700 get_helm.sh
+./get_helm.sh
+
+
+### Install ingress secundário 
+https://doc.traefik.io/traefik/getting-started/install-traefik/
+
+### Configurar o etcd
+https://github.com/etcd-io/etcd/releases/
+
+cat <<EOF > etcdctl.env
+export ETCDCTL_CACERT=/etc/kubernetes/pki/etcd/ca.crt
+export ETCDCTL_CERT=/etc/kubernetes/pki/etcd/server.crt
+export ETCDCTL_KEY=/etc/kubernetes/pki/etcd/server.key
+export ETCDCTL_API=3
+EOF
+
+source etcdctl.env
+
+etcdctl member list
+
+
+
+### Criar secret
+kubectl create secret tls herval.com.br --key herval.com.br.key --cert herval.com.br.crt --namespace=application
+
+
+### Criar afinidade nos node
+kubectl label nodes k8spocworker1 role=worker
+kubectl label nodes k8spocmaster1 role=master
+kubectl get nodes --show-labels
+
+
+
+## Recriar token worker
+kubeadm token generate
+kubeadm token create 6wb33w.37w6yh45mk93mmve --print-join-command
+
+### Criar --certificate-key para o master
+kubeadm init phase upload-certs --upload-certs
+
+kubeadm join k8spocmaster1:6443 --token 6wb33w.37w6yh45mk93mmve --discovery-token-ca-cert-hash sha256:a2874de4b7623e1659adf1e4460548f1099cc4055e6e1d2605569ece66a99681 --control-plane --certificate-key 7acc965a7add78615ad73cb37709b6b6cbe159189157ddd51e76eef98fc4f927 --v=5
+
+kubeadm join k8spocmaster1:6443 --token 6wb33w.37w6yh45mk93mmve --discovery-token-ca-cert-hash sha256:a2874de4b7623e1659adf1e4460548f1099cc4055e6e1d2605569ece66a99681 --v=5
