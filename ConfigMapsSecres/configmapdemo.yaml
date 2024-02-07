@@ -8,3 +8,10 @@ data:
      <html>
        <h1> Teste </h1>
      </html>
+   vhost.confg:  |
+      server {
+        listen 80;
+        listen [::]:80;
+
+        root /usr/share/nginx/app1
+      } 

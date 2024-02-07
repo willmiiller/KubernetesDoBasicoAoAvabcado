@@ -15,21 +15,22 @@ spec:
         app: nginx
     spec:
       containers:
-       - image: nginx
-         name: nginx
-         env:
-           - name: VIRTUAL_HOST
-             valueFrom:
-              configMapKeyRef:
-                name: nginx-demo
-                key: virtual_host
+      - image: nginx
+        name: nginx
+        env:
+        - name: VIRTUAL_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: nginx-demo
+              key: virtual_host
         volumeMounts:
-         - name: index-html
-           mountPath: /usr/share/nginx/html
-      volume:
         - name: index-html
-          configMap:
-            name: nginx-demo
-            itens:
-            - key: "index.html"
-              path: "index.html" 
+          mountPath: /usr/share/nginx/html/index.html
+          subPath: index.html
+      volumes:
+      - name: index-html
+        configMap:
+          name: nginx-demo
+          items:
+          - key: "index.html"
+            path: "index.html"
