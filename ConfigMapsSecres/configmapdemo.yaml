@@ -4,30 +4,7 @@ metadata:
   name: nginx-demo
 data:
   virtual_host: "vhost1.localhost.com"
-
----
-
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  creationTimestamp: null
-  labels:
-    app: nginx
-  name: nginx
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: nginx
-  strategy: {}
-  template:
-    metadata:
-      creationTimestamp: null
-      labels:
-        app: nginx
-    spec:
-      containers:
-      - image: nginx
-        name: nginx
-        resources: {}
-status: {}
+  index.html: | 
+     <html>
+       <h1> Teste </h1>
+     </html>
