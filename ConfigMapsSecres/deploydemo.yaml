@@ -25,7 +25,7 @@ spec:
               key: virtual_host
         volumeMounts:
         - name: index-html
-          mountPath: /usr/share/nginx/html/index.html
+          mountPath: /usr/share/nginx/app1/index.html
           subPath: index.html
       volumes:
       - name: index-html
