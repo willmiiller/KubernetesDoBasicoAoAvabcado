@@ -1,0 +1,128 @@
+# Deployment
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: your-deployment
+  namespace: your-namespace
+  labels:
+    app: your-application
+spec:
+  replicas: ${REPLICAS_COUNT}
+  minReadySeconds: 30
+  strategy:
+    rollingUpdate:
+      maxSurge: 3
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: your-application
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - your-application
+            topologyKey: kubernetes.io/hostname
+      containers:
+        - name: your-application-container
+          imagePullPolicy: Always
+          image: your-application-image:v1.0.0
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 500m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+          env:
+            - name: LOG_LEVEL
+              value: info
+            - name: TAG
+              value: v1.0.0
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthcheck/status
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 60
+          readinessProbe:
+            failureThreshold: 2
+            httpGet:
+              path: /healthcheck/status
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: your-service
+  namespace: your-namespace
+  labels:
+    app: your-application
+spec:
+  ports:
+    - port: 80
+      name: https
+      targetPort: 3000
+  selector:
+    app: your-application
+  type: ClusterIP
+---
+# Ingress
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: "private"
+  labels:
+    app: your-application
+  name: your-ingress
+  namespace: your-namespace
+spec:
+  rules:
+    - host: your-application.vivareal.com.br
+      http:
+        paths:
+          - backend:
+              serviceName: your-service
+              servicePort: 80
+            path: /
+---
+# HPA
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: your-hpa
+  namespace: your-namespace
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1beta1
+    kind: Deployment
+    name: your-deployment
+  minReplicas: 2
+  maxReplicas: 200
+  targetCPUUtilizationPercentage: 80
+---
+# PDB
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: your-pdb
+  namespace: your-namespace
+spec:
+  selector:
+    matchLabels:
+      app: your-application
+  minAvailable: 50%
