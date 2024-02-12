@@ -3,6 +3,9 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: nginx-hpa
 spec:
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 30
   metrics:
   - resource:
       name: cpu
