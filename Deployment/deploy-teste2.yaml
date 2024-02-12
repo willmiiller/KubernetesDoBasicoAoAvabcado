@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: deploy-teste2
+  name: deploy-teste2
+spec:
+  replicas: 15
+  selector:
+    matchLabels:
+      app: deploy-teste2
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: deploy-teste2
+    spec:
+      containers:
+      - image: ubuntu
+        name: ubuntu

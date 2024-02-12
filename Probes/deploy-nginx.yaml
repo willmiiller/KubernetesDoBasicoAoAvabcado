@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: nginx-probe
+  name: nginx-probe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-probe
+  template:
+    metadata:
+      labels:
+        app: nginx-probe
+    spec:
+      containers:
+      - image: nginx
+        name: nginx
+        env:
+          - name: ENVIROMENT
+            value: development
+        readinessProbe:
+          httpGet:
+            path: "/"
+            port: 80
+        livenessProbe:
+          httpGet:
+            path: "/"
+            port: 80
+
