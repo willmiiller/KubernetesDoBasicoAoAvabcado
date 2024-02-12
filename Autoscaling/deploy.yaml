@@ -11,7 +11,7 @@ spec:
         type: Utilization
     type: Resource
   minReplicas: 1
-	maxReplicas: 100
+  maxReplicas: 100
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
